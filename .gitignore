@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.db
+/mnt/imagens/
+/venv/
+/digitalizador-venv/
+/.idea/
+/.vscode/
