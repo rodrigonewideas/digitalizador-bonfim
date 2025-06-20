@@ -24,7 +24,8 @@ def get_cessionarios_por_lote(nr_lote: str):
                 c.NR_TERRENO,
                 t.CODIGO
             FROM CONTRATO c
-            JOIN CONTRATO_TITULAR ct ON ct.CONTRATO = c.CONTRATO AND ct.RESP_PGTO = 'S'
+            JOIN CONTRATO_TITULAR ct ON ct.CONTRATO = c.CONTRATO
+            JOIN TIPO_DOC 
             JOIN TITULAR t ON t.CODIGO = ct.TITULAR
             LEFT JOIN VENDEDOR v ON v.VENDEDOR = c.VENDEDOR
             WHERE c.NR_TERRENO LIKE ?

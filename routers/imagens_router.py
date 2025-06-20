@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import FileResponse
 from urllib.parse import unquote, quote
+from dependencies.auth import verificar_token_http
 import os
 import fdb
 
 router = APIRouter()
 
-# Rota 1: Servir imagem local por caminho fisico
-@router.get("/{data}/{tipo}/{arquivo:path}")
+# Rota 1: Servir imagem local por caminho físico (protegida)
+@router.get("/{data}/{tipo}/{arquivo:path}", dependencies=[Depends(verificar_token_http)])
 def serve_imagem(data: str, tipo: str, arquivo: str):
     nome_arquivo = unquote(arquivo)
     caminho = f"/mnt/imagens/{data}/{tipo}/{nome_arquivo}"
@@ -17,15 +18,16 @@ def serve_imagem(data: str, tipo: str, arquivo: str):
 
     return FileResponse(path=caminho, media_type="image/jpeg")
 
-# Rota 2: Buscar imagens vinculadas ao contrato no Firebird e retornar URLs formatadas
-@router.get("")
+
+# Rota 2: Buscar imagens vinculadas ao contrato (protegida)
+@router.get("", dependencies=[Depends(verificar_token_http)])
 def listar_imagens_por_contrato(contrato: int = Query(..., description="Número do contrato")):
     try:
         con = fdb.connect(
             dsn='192.168.5.232:C:/solution/data/DIGITALIZADOR.GDB',
             user='SYSDBA',
             password='bonfim2005',
-            charset='UTF8'
+            charset='ISO8859_1'
         )
         cur = con.cursor()
 
@@ -34,15 +36,20 @@ def listar_imagens_por_contrato(contrato: int = Query(..., description="Número 
             ri.REGISTRO_IMAGE,
             ri.REGISTRO,
             ri.TIPO_DOC,
+            td.DESCR AS DESCR_TIPO_DOC,
             ri.FRENTE,
             ri.NR_FOLHA,
             ri.TOTAL_FOLHAS,
             ri.IMAGE,
-            ri.IMAGE_THUMBNAIL
+            ri.IMAGE_THUMBNAIL,
+            '' AS DATA,
+            '' AS ARQUIVO
         FROM REGISTRO_IMAGE ri
         JOIN REGISTRO r ON r.REGISTRO = ri.REGISTRO
+        JOIN TIPO_DOC td ON td.TIPO_DOC = ri.TIPO_DOC
         WHERE r.CONTRATO = ?
-        ORDER BY ri.REGISTRO_IMAGE
+          AND ri.IMAGE IS NOT NULL
+        ORDER BY UPPER(td.DESCR), ri.NR_FOLHA, ri.FRENTE, ri.REGISTRO_IMAGE
         """
 
         cur.execute(query, (contrato,))
@@ -66,13 +73,15 @@ def listar_imagens_por_contrato(contrato: int = Query(..., description="Número 
                     "registro_image": item["registro_image"],
                     "registro": item["registro"],
                     "tipo_doc": item["tipo_doc"],
+                    "descr_tipo_doc": item["descr_tipo_doc"],
                     "frente": item["frente"],
                     "nr_folha": item["nr_folha"],
                     "total_folhas": item["total_folhas"],
                     "data": data_pasta,
                     "arquivo": nome_arquivo,
                     "full": f"https://bonfim.malotedigital.com.br/api/imagens/{data_pasta}/FULL/{encoded_full}",
-                    "thumb": f"https://bonfim.malotedigital.com.br/api/imagens/{data_pasta}/THM/{encoded_thm}"
+                    "thumb": f"https://bonfim.malotedigital.com.br/api/imagens/{data_pasta}/THM/{encoded_thm}",
+                    "docnewideas": "N"
                 })
 
         if not imagens:
