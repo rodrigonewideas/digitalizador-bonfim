@@ -3,12 +3,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
 import os
 
+# 🔐 Configurações do JWT
 SECRET_KEY = os.getenv("SECRET_KEY", "acarrocafazmaisbarulho")
 ALGORITHM = "HS256"
 
+# 🔐 Esquema de autenticação Bearer
 bearer_scheme = HTTPBearer()
 
-# Verifica se o token é válido
+# ✅ Verifica se o token é válido
 def verificar_token_http(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)):
     token = credentials.credentials
     try:
@@ -17,7 +19,7 @@ def verificar_token_http(credentials: HTTPAuthorizationCredentials = Depends(bea
     except JWTError:
         raise HTTPException(status_code=401, detail="Token inválido ou expirado")
 
-# Verifica se o token é válido e se o usuário é administrador
+# ✅ Verifica se o usuário autenticado é administrador
 def verificar_admin(payload=Depends(verificar_token_http)):
     if not payload.get("admin"):
         raise HTTPException(status_code=403, detail="Acesso restrito a administradores")

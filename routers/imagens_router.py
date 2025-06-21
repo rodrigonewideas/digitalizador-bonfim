@@ -1,11 +1,16 @@
-from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from fastapi.responses import FileResponse
 from urllib.parse import unquote, quote
 from dependencies.auth import verificar_token_http
+from jose import jwt, JWTError
 import os
 import fdb
 
 router = APIRouter()
+
+# 🔐 Config do token
+SECRET_KEY = os.getenv("SECRET_KEY", "acarrocafazmaisbarulho")
+ALGORITHM = "HS256"
 
 # Rota 1: Servir imagem local por caminho físico (protegida)
 @router.get("/{data}/{tipo}/{arquivo:path}", dependencies=[Depends(verificar_token_http)])
@@ -91,3 +96,24 @@ def listar_imagens_por_contrato(contrato: int = Query(..., description="Número 
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao buscar imagens: {str(e)}")
+
+
+# Rota 3: Servir imagem para visualização externa com token na URL
+@router.get("/viewer/{codigo}")
+def visualizar_imagem_externa(codigo: int, request: Request):
+    token = request.query_params.get("token")
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Token ausente")
+
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
+    caminho = f"/mnt/imagens/view/{codigo}.jpg"
+
+    if not os.path.exists(caminho):
+        raise HTTPException(status_code=404, detail="Imagem não encontrada")
+
+    return FileResponse(path=caminho, media_type="image/jpeg")

@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordBearer
 from routers.digitalizador_router import router as digitalizador_router, processar_lote
 from routers.imagens_router import router as imagens_router
 from routers.auth_router import router as auth_router
+from routers.visualizador_router import router as visualizador_router  # ✅ NOVO
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,7 +27,7 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
-# CORS para frontend do Lovable e domínio externo
+# Middleware CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"https://.*\.lovable\.app|https://bonfim\.malotedigital\.com\.br",
@@ -35,7 +36,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Função personalizada do OpenAPI para incluir JWT no Swagger
+# OpenAPI customizado para exibir Bearer Token no Swagger
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
@@ -60,12 +61,12 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-# Rota de verificação básica
+# Rota pública de verificação
 @app.get("/ping")
 def health_check_ping():
     return {"success": True, "detail": "API funcionando"}
 
-# Alias para busca direta por lote (não autenticado)
+# Alias de consulta por lote (sem autenticação)
 @app.get("/lote")
 def alias_lote(lote: str):
     return processar_lote(lote)
@@ -74,3 +75,4 @@ def alias_lote(lote: str):
 app.include_router(digitalizador_router, prefix="/api/digitalizador")
 app.include_router(imagens_router, prefix="/api/imagens")
 app.include_router(auth_router, prefix="/api/auth")
+app.include_router(visualizador_router, prefix="/api/visualizador")  # ✅ NOVO
