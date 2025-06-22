@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query, Depends, Request
+from fastapi import APIRouter, HTTPException, Query, Depends, Request, Header
 from fastapi.responses import FileResponse
 from urllib.parse import unquote, quote
 from dependencies.auth import verificar_token_http
@@ -12,19 +12,40 @@ router = APIRouter()
 SECRET_KEY = os.getenv("SECRET_KEY", "acarrocafazmaisbarulho")
 ALGORITHM = "HS256"
 
-# Rota 1: Servir imagem local por caminho físico (protegida)
-@router.get("/{data}/{tipo}/{arquivo:path}", dependencies=[Depends(verificar_token_http)])
-def serve_imagem(data: str, tipo: str, arquivo: str):
+# 🔹 Rota 1: Servir imagem (tanto THM quanto FULL) — protegida por header OU por ?token=
+@router.get("/{data}/{tipo}/{arquivo:path}")
+def serve_imagem_protegida(
+    request: Request,
+    data: str,
+    tipo: str,
+    arquivo: str,
+    authorization: str = Header(default=None)
+):
     nome_arquivo = unquote(arquivo)
     caminho = f"/mnt/imagens/{data}/{tipo}/{nome_arquivo}"
 
     if not os.path.isfile(caminho):
         raise HTTPException(status_code=404, detail="Imagem não encontrada")
 
+    # 🔒 Token pode vir do header Authorization ou via query ?token=
+    token = None
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ")[1]
+    else:
+        token = request.query_params.get("token")
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Token ausente ou inválido")
+
+    try:
+        jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token inválido")
+
     return FileResponse(path=caminho, media_type="image/jpeg")
 
 
-# Rota 2: Buscar imagens vinculadas ao contrato (protegida)
+# 🔹 Rota 2: Buscar imagens vinculadas ao contrato (protegida)
 @router.get("", dependencies=[Depends(verificar_token_http)])
 def listar_imagens_por_contrato(contrato: int = Query(..., description="Número do contrato")):
     try:
@@ -64,7 +85,6 @@ def listar_imagens_por_contrato(contrato: int = Query(..., description="Número 
         imagens = []
         for row in rows:
             item = dict(zip(colunas, row))
-
             caminho_full = item["image"].strip() if item["image"] else ""
 
             partes_full = caminho_full.split("\\")
@@ -98,7 +118,7 @@ def listar_imagens_por_contrato(contrato: int = Query(..., description="Número 
         raise HTTPException(status_code=500, detail=f"Erro ao buscar imagens: {str(e)}")
 
 
-# Rota 3: Servir imagem para visualização externa com token na URL
+# 🔹 Rota 3: Viewer (caso queira manter para abrir via link + token na URL)
 @router.get("/viewer/{codigo}")
 def visualizar_imagem_externa(codigo: int, request: Request):
     token = request.query_params.get("token")
